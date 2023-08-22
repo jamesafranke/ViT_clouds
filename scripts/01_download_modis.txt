@@ -1,4 +1,5 @@
-!wget -e robots=off -m -np -R .html,.tmp -nH --cut-dirs=3 "https://ladsweb.modaps.eosdis.nasa.gov/archive/allData/61/MYD06_L2/2018/304/" --header "Authorization: Bearer <token>"
+!wget -e robots=off -m -np -R .html,.tmp -nH --cut-dirs=3 "https://ladsweb.modaps.eosdis.nasa.gov/archive/allData/61/MYD06_L2/2018/" --header "Authorization: Bearer <token>"
 
 
+!wget -e robots=off -m -np -R .html,.tmp -nH --cut-dirs=3 "https://ladsweb.modaps.eosdis.nasa.gov/archive/allData/61/MOD06_L2/2018/" --header "Authorization: Bearer <token>"
 
