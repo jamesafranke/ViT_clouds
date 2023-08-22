@@ -10,7 +10,7 @@ root = 'xxxx./'
 fl = [f'{root}modis/hdf/...{i}' + i for i in os.listdir( f'{root}modis/hdf/...' )]
 
 for i, filename in enumerate(fl):
-    if i%10==0: print(i)
+    if i%100==0: print(i)
     newname = filename.split('/')[-1].strip('.hdf')
     if os.path.exists(f'{root}modis/nc/{newname}.nc') == False:
 
@@ -27,5 +27,6 @@ for i, filename in enumerate(fl):
         #### re-project to even lat lon with datashader ##
         cvs = das.Canvas(plot_width=2000, plot_height=2000)
         agg = cvs.points(df, 'lon', 'lat', das.mean('clwp'))
-        agg.to_netcdf(f'{root}modis/nc/{newname}.nc)
+        agg.to_netcdf(f'{root}modis/nc/{newname}.nc')
+
 
