@@ -1,8 +1,10 @@
 !pip install pyproj
 !pip install --upgrade pyhdf
+!pip install datashader
+
+
 !apt-get install libgeos++ libproj-dev proj-data proj-bin
 !pip install cartopy
 !apt-get -qq install python-cartopy python3-cartopy
 !pip uninstall -y shapely  # cartopy and shapely aren't friends (early 2020)
 !pip install shapely --no-binary shapely
-!pip install datashader
