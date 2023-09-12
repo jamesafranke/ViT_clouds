@@ -21,7 +21,7 @@ class CustomDataset(Dataset):
 
 # CUDA for PyTorch
 use_cuda = torch.cuda.is_available()
-device = torch.device("cuda:0" if use_cuda else "cpu")
+device = torch.device("cuda:0") # if use_cuda else "cpu")
 torch.backends.cudnn.benchmark = True
 
 # Parameters
@@ -57,7 +57,10 @@ learner = Dino(
 
 opt = torch.optim.Adam(learner.parameters(), lr = 3e-4)
 
-for epoch in range(100):
+print(torch.cuda.is_available() , flush=True )
+
+torch.cuda.cudart().cudaProfilerStart()
+for epoch in range(2):
     for batch in data_loader:
         data = batch.to(device)
         loss = learner(data)
@@ -65,6 +68,9 @@ for epoch in range(100):
         loss.backward()
         opt.step()
         learner.update_moving_average() 
+torch.cuda.cudart().cudaProfilerStop()
 
-torch.save(model.state_dict(), './workspace/checkpoints/pretrained-net_modis_256_256_patch32_mod.pt')
+#torch.save(model.state_dict(), './workspace/checkpoints/pretrained-net_modis_256_256_patch32_mod.pt')
+os.makedirs(f"{HOME}/run/profile",exist_ok=True)
+torch.save(model.state_dict(), f'{HOME}/run/profile/pretrained-net_modis_256_256_patch32_mod.pt')
 
