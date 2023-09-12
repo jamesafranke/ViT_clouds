@@ -2,6 +2,9 @@ import os, torch, numpy as np
 from torchvision.io import read_image
 from torch.utils.data import Dataset, DataLoader
 from vit_pytorch import ViT, Dino
+from pathlib import Path
+
+HOME=str(Path.home())
     
 class CustomDataset(Dataset):
     def __init__(self, data_dir):
@@ -24,7 +27,7 @@ torch.backends.cudnn.benchmark = True
 # Parameters
 params = {'batch_size': 200,'shuffle': True, 'num_workers': 2}
 
-custom_dataset = CustomDataset(data_dir='./workspace/data/processed/patch_256')
+custom_dataset = CustomDataset(data_dir=f'{HOME}/workspace/hack_team_01/data/processed/patch_256')
 data_loader = DataLoader(custom_dataset, **params)
 
 model = ViT(
