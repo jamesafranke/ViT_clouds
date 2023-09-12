@@ -13,7 +13,7 @@ class CustomDataset(Dataset):
 
     def __getitem__(self, idx):
         img_path = os.path.join(self.data_dir, self.data[idx])
-        img = read_image(img_path)       #.unfold(1, 512, 420).unfold(2, 512, 420).permute(1,2,0,3,4).reshape(12, 3, 512, 512) / 255
+        img = read_image(img_path)
         return img / 255 
 
 # CUDA for PyTorch
@@ -45,7 +45,7 @@ learner = Dino(
     projection_layers = 4,             # number of layers in projection network
     num_classes_K = 65336,             # output logits dimensions (referenced as K in paper)
     student_temp = 0.9,                # student temperature
-    teacher_temp = 0.05,               # teacher temperature, needs to be annealed from 0.04 to 0.07 over 30 epochs
+    teacher_temp = 0.04,               # teacher temperature, needs to be annealed from 0.04 to 0.07 over 30 epochs
     local_upper_crop_scale = 0.4,      # upper bound for local crop - 0.4 was recommended in the paper 
     global_lower_crop_scale = 0.5,     # lower bound for global crop - 0.5 was recommended in the paper
     moving_average_decay = 0.9,        # moving average of encoder - paper showed anywhere from 0.9 to 0.999 was ok
@@ -55,7 +55,7 @@ learner = Dino(
 opt = torch.optim.Adam(learner.parameters(), lr = 3e-4)
 
 for epoch in range(300):
-    for batch in tqdm(data_loader, desc=f'epoch: {epoch}'):
+    for batch in data_loader:
         data = batch.to(device)
         loss = learner(data)
         opt.zero_grad()
@@ -64,3 +64,4 @@ for epoch in range(300):
         learner.update_moving_average() 
 
 torch.save(model.state_dict(), './workspace/checkpoints/pretrained-net_modis_256_256_patch32_mod.pt')
+
