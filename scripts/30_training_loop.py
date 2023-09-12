@@ -61,13 +61,27 @@ print(torch.cuda.is_available() , flush=True )
 
 torch.cuda.cudart().cudaProfilerStart()
 for epoch in range(2):
-    for batch in data_loader:
-        data = batch.to(device)
-        loss = learner(data)
+    for i, batch in enumerate(data_loader):
+        batch = batch.to(device)
+        # forward
+        torch.cuda.nvtx.range_push("iteration{}".format(i*(epoch+1)))
+        loss = learner(batch)
+
+        # backward 
+        torch.cuda.nvtx.range_push("backward")
         opt.zero_grad()
         loss.backward()
+
+        # optimizer
+        torch.cuda.nvtx.range_push("opt.step()")
         opt.step()
         learner.update_moving_average() 
+
+
+        if i % 20 == 0:
+            print(f"Step {i} :  {torch.cuda.memory_allocated(device=device)/(1024**3) } [GB]", flush=True)
+    torch.cuda.empty_cache()
+
 torch.cuda.cudart().cudaProfilerStop()
 
 #torch.save(model.state_dict(), './workspace/checkpoints/pretrained-net_modis_256_256_patch32_mod.pt')
