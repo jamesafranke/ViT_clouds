@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --time=00:30:00
+#SBATCH --time=01:00:00
 #SBATCH --job-name=test
 #SBATCH --output=%x_%A.out
 #SBATCH --error=%x_%A.err
@@ -38,9 +38,10 @@ fi
 
 
 DISTRIBUTED_ARGS="-N $NGPUS" # --gpus-per-node ${GPUS_PER_NODE}"
-PROFILE="nsys profile --trace=cuda,nvtx -b dwarf --python-sampling=true --cudabacktrace=all --python-backtrace=cuda --capture-range=nvtx --nvtx-capture=epoch_2 --env-var=NSYS_NVTX_PROFILER_REGISTER_ONLY=0"
-FULL_PROFILE="nsys profile --trace=cuda,nvtx -b dwarf --python-sampling=true --cudabacktrace=all --python-backtrace=cuda"
+#PROFILE="nsys profile --trace=cuda,nvtx -b dwarf --python-sampling=true --cudabacktrace=all --python-backtrace=cuda --capture-range=nvtx --nvtx-capture=epoch_1 --env-var=NSYS_NVTX_PROFILER_REGISTER_ONLY=0"
+PROFILE="nsys profile --trace=cuda,nvtx -b dwarf --python-sampling=true --cudabacktrace=all --python-backtrace=cuda --capture-range=cudaProfilerApi  --nvtx-capture=epoch_1"
+#FULL_PROFILE="nsys profile --trace=cuda,nvtx -b dwarf --python-sampling=true --cudabacktrace=all --python-backtrace=cuda"
 
 
-time mpirun $DISTRIBUTED_ARGS $FULL_PROFILE  \
-	python3 $appdir/30_training_loop.py
+echo   $DISTRIBUTED_ARGS $PROFILE python3 $appdir/30_training_loop.py
+time $PROFILE python3 $appdir/30_training_loop.py

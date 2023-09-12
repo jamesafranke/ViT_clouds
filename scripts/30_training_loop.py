@@ -60,7 +60,7 @@ opt = torch.optim.Adam(learner.parameters(), lr = 3e-4)
 print(torch.cuda.is_available() , flush=True )
 
 torch.cuda.cudart().cudaProfilerStart()
-for epoch in range(2):
+for epoch in range(3):
     for i, batch in enumerate(data_loader):
         batch = batch.to(device)
         # forward
@@ -85,6 +85,6 @@ for epoch in range(2):
 torch.cuda.cudart().cudaProfilerStop()
 
 #torch.save(model.state_dict(), './workspace/checkpoints/pretrained-net_modis_256_256_patch32_mod.pt')
-os.makedirs(f"{HOME}/run/profile",exist_ok=True)
-torch.save(model.state_dict(), f'{HOME}/run/profile/pretrained-net_modis_256_256_patch32_mod.pt')
+os.makedirs(f"{HOME}/ViT_clouds/run/profile",exist_ok=True)
+torch.save(model.state_dict(), f'{HOME}/ViT_clouds/run/profile/pretrained-net_modis_256_256_patch32_mod.pt')
 
