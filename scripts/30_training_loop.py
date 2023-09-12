@@ -54,7 +54,7 @@ learner = Dino(
 
 opt = torch.optim.Adam(learner.parameters(), lr = 3e-4)
 
-for epoch in range(300):
+for epoch in range(100):
     for batch in data_loader:
         data = batch.to(device)
         loss = learner(data)
