@@ -61,6 +61,17 @@ def demo_basic():
     model = learner.to(device_id)
     ddp_model = DDP(model, device_ids=[device_id], find_unused_parameters=True)
 
+    os.makedirs(f"{HOME}/ViT_clouds/run/profile",exist_ok=True)
+    CHECKPOINT_PATH = f'{HOME}/ViT_clouds/run/profile/pretrained-net_modis_256_256_patch32_mod.pt'
+
+    # configure map_location properly
+    map_location = {'cuda:%d' % 0: 'cuda:%d' % rank}
+    ddp_model.load_state_dict(
+        torch.load(CHECKPOINT_PATH, map_location=map_location))
+    # Use a barrier() to make sure that process 1 loads the model after process
+    # 0 saves it.
+    dist.barrier()
+
     for epoch in range(3):
         print(epoch)
         data_loader.sampler.set_epoch(epoch)
@@ -72,7 +83,16 @@ def demo_basic():
             opt.zero_grad()
             loss.backward()
             opt.step()
+            #FIXME is this ddp_model?
             model.update_moving_average() 
+
+        if epoch % 1 == 0:
+            if rank == 0:
+                # All processes should see same parameters as they all start from same
+                # random parameters and gradients are synchronized in backward passes.
+                # Therefore, saving it in one process is sufficient.
+                print('save', flush=True)
+                torch.save(ddp_model.state_dict(), CHECKPOINT_PATH)
 
     dist.destroy_process_group()
 
