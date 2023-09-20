@@ -51,7 +51,7 @@ def demo_basic():
     custom_dataset = CustomDataset(data_dir=f'{HOME}/workspace/hack_team_01/data/processed/patch_1024')
     data_loader = DataLoader(
         dataset=custom_dataset,
-        batch_size=32,
+        batch_size=64,
         shuffle=False,
         sampler=DistributedSampler(custom_dataset),
     )
