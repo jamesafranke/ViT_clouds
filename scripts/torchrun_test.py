@@ -5,13 +5,12 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torchvision.io import read_image
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, DistributedSampler
 from vit_pytorch import ViT, Dino
 from pathlib import Path
 torch.backends.cuda.matmul.allow_tf32 = True
 
 HOME=str(Path.home())
-params = {'batch_size':10, 'shuffle':True, 'num_workers':2}
 
 class CustomDataset(Dataset):
     def __init__(self, data_dir):
@@ -27,7 +26,12 @@ class CustomDataset(Dataset):
         return img / 255 
 
 custom_dataset = CustomDataset(data_dir=f'{HOME}/workspace/hack_team_01/data/processed/patch_1024')
-data_loader = DataLoader(custom_dataset, **params)
+data_loader = DataLoader(
+    dataset=custom_dataset,
+    batch_size=32,
+    shuffle=False,
+    sampler=DistributedSampler(custom_dataset),
+)
 
 vit = ViT(image_size = 1024, patch_size = 32, num_classes = 1000, dim = 1024, depth = 6, heads = 8,  mlp_dim = 2048)
 
@@ -60,15 +64,18 @@ def demo_basic():
 
     for epoch in range(3):
         print(epoch)
+        data_loader.sampler.set_epoch(epoch)
+
         for batch in data_loader:
-            batch = batch.to(rank)
+            batch = batch.to(device_id)
             loss = ddp_model(batch)
             opt.zero_grad()
             loss.backward()
             opt.step()
-            ddp_model.update_moving_average() 
+            learner.update_moving_average() 
 
-    dist.destroy_process_group()
+        dist.destroy_process_group()
 
 if __name__ == "__main__":
+    print(torch.cuda.device_count())
     demo_basic()
