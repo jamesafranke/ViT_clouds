@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --time=01:00:00
+#SBATCH --time=01:30:00
 #SBATCH --job-name=test
 #SBATCH --output=%x_%A.out
 #SBATCH --error=%x_%A.err
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:2
 
 ##SBATCH --ntasks=2
 ##SBATCH --cpus-per-task=1
@@ -14,7 +14,15 @@
 
 appdir=${HOME}/ViT_clouds/scripts
 
-export CUDA_DEVICE_MAX_CONNECTIONS=1
+#export CUDA_DEVICE_MAX_CONNECTIONS=1
+
+# Model Config
+epochs=3
+batch_size=$1
+mlp_dim=$2
+datadir=$3
+image_size=$4
+
 
 # Config
 NGPUS=1
@@ -37,11 +45,21 @@ else
 fi
 
 
-DISTRIBUTED_ARGS="-N $NGPUS" # --gpus-per-node ${GPUS_PER_NODE}"
-#PROFILE="nsys profile --trace=cuda,nvtx -b dwarf --python-sampling=true --cudabacktrace=all --python-backtrace=cuda --capture-range=nvtx --nvtx-capture=epoch_1 --env-var=NSYS_NVTX_PROFILER_REGISTER_ONLY=0"
-PROFILE="nsys profile --trace=cuda,nvtx -b dwarf --python-sampling=true --cudabacktrace=all --python-backtrace=cuda --capture-range=cudaProfilerApi  --nvtx-capture=epoch_1"
-#FULL_PROFILE="nsys profile --trace=cuda,nvtx -b dwarf --python-sampling=true --cudabacktrace=all --python-backtrace=cuda"
+DISTRIBUTED_ARGS="-N $NGPUS"
+PROFILE="nsys profile --trace=cuda,nvtx "
 
 
-echo   $DISTRIBUTED_ARGS $PROFILE python3 $appdir/30_training_loop.py
-time $PROFILE python3 $appdir/30_training_loop.py
+# ECHO option
+#echo   $DISTRIBUTED_ARGS 
+echo $PROFILE python3 $appdir/30_training_loop.py
+
+
+# Execute
+OUTPUT="-o nsys-rep-B${batch_size}-MLPdim${mlp_dim}_S${image_size}"
+echo $OUTPUT $batch_size ${mlp_dim}
+time $PROFILE $OUTPUT python3 $appdir/30_training_loop.py \
+        --datadir $datadir \
+        --image_size $image_size \
+        --batch_size ${batch_size} \
+        --mlp_dim ${mlp_dim} \
+        --epochs ${epochs}
