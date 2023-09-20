@@ -25,14 +25,6 @@ class CustomDataset(Dataset):
         img = read_image(img_path)
         return img / 255 
 
-custom_dataset = CustomDataset(data_dir=f'{HOME}/workspace/hack_team_01/data/processed/patch_1024')
-data_loader = DataLoader(
-    dataset=custom_dataset,
-    batch_size=32,
-    shuffle=False,
-    sampler=DistributedSampler(custom_dataset),
-)
-
 vit = ViT(image_size = 1024, patch_size = 32, num_classes = 1000, dim = 1024, depth = 6, heads = 8,  mlp_dim = 2048)
 
 learner = Dino(
@@ -50,7 +42,6 @@ learner = Dino(
     center_moving_average_decay = 0.9, # moving average of teacher centers -anywhere from 0.9 to 0.999 was ok
 )
 
-opt = torch.optim.Adam(learner.parameters(), lr = 3e-4)
 
 def demo_basic():
     dist.init_process_group("nccl")
@@ -62,6 +53,14 @@ def demo_basic():
     model = learner.to(device_id)
     ddp_model = DDP(model, device_ids=[device_id])
 
+    custom_dataset = CustomDataset(data_dir=f'{HOME}/workspace/hack_team_01/data/processed/patch_1024')
+    data_loader = DataLoader(
+        dataset=custom_dataset,
+        batch_size=32,
+        shuffle=False,
+        sampler=DistributedSampler(custom_dataset),
+    )
+
     for epoch in range(3):
         print(epoch)
         data_loader.sampler.set_epoch(epoch)
@@ -69,6 +68,7 @@ def demo_basic():
         for batch in data_loader:
             batch = batch.to(device_id)
             loss = ddp_model(batch)
+            opt = torch.optim.Adam(learner.parameters(), lr = 3e-4)
             opt.zero_grad()
             loss.backward()
             opt.step()
