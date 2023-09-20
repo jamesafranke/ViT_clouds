@@ -42,12 +42,12 @@ learner = Dino(
     center_moving_average_decay = 0.9, # moving average of teacher centers -anywhere from 0.9 to 0.999 was ok
 )
 
-
 def demo_basic():
     dist.init_process_group("nccl")
     rank = dist.get_rank()
     print(f"Start running basic DDP example on rank {rank}.")
 
+    # distributed dataloader
     custom_dataset = CustomDataset(data_dir=f'{HOME}/workspace/hack_team_01/data/processed/patch_1024')
     data_loader = DataLoader(
         dataset=custom_dataset,
@@ -59,7 +59,7 @@ def demo_basic():
     # create model and move it to GPU with id rank
     device_id = rank % torch.cuda.device_count()
     model = learner.to(device_id)
-    ddp_model = DDP(model, device_ids=[device_id])
+    ddp_model = DDP(model, device_ids=[device_id], find_unused_parameters=True)
 
     for epoch in range(3):
         print(epoch)
@@ -72,9 +72,9 @@ def demo_basic():
             opt.zero_grad()
             loss.backward()
             opt.step()
-            ddp_model.update_moving_average() 
+            model.update_moving_average() 
 
-        dist.destroy_process_group()
+    dist.destroy_process_group()
 
 if __name__ == "__main__":
     print(torch.cuda.device_count())
