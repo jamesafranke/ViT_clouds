@@ -48,11 +48,6 @@ def demo_basic():
     rank = dist.get_rank()
     print(f"Start running basic DDP example on rank {rank}.")
 
-    # create model and move it to GPU with id rank
-    device_id = rank % torch.cuda.device_count()
-    model = learner.to(device_id)
-    ddp_model = DDP(model, device_ids=[device_id])
-
     custom_dataset = CustomDataset(data_dir=f'{HOME}/workspace/hack_team_01/data/processed/patch_1024')
     data_loader = DataLoader(
         dataset=custom_dataset,
@@ -61,6 +56,11 @@ def demo_basic():
         sampler=DistributedSampler(custom_dataset),
     )
 
+    # create model and move it to GPU with id rank
+    device_id = rank % torch.cuda.device_count()
+    model = learner.to(device_id)
+    ddp_model = DDP(model, device_ids=[device_id])
+
     for epoch in range(3):
         print(epoch)
         data_loader.sampler.set_epoch(epoch)
@@ -68,11 +68,11 @@ def demo_basic():
         for batch in data_loader:
             batch = batch.to(device_id)
             loss = ddp_model(batch)
-            opt = torch.optim.Adam(learner.parameters(), lr = 3e-4)
+            opt = torch.optim.Adam(ddp_model.parameters(), lr = 3e-4)
             opt.zero_grad()
             loss.backward()
             opt.step()
-            learner.update_moving_average() 
+            ddp_model.update_moving_average() 
 
         dist.destroy_process_group()
 
