@@ -8,9 +8,45 @@ from torchvision.io import read_image
 from torch.utils.data import Dataset, DataLoader, DistributedSampler
 from vit_pytorch import ViT, Dino
 from pathlib import Path
+import logging as log
+import argparse
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 torch.backends.cuda.matmul.allow_tf32 = True
 
 HOME=str(Path.home())
+log.basicConfig(format='%(process)d-%(levelname)s-%(message)s')
+
+def parse_args(verbose=False):
+    """ arg parser to automate experiment """
+    p = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter, description=__doc__)
+    p.add_argument("--datadir",       type=str,  default=f'{HOME}/workspace/hack_team_01/data/processed/patch_256', help='training data directory', required=True)
+    p.add_argument("--batch_size",    type=int,  default=200,  help='minibatch size')
+    p.add_argument("--num_workers",   type=int,  default=4,    help='number of workers for pipeline')
+    p.add_argument("--epochs",        type=int,  default=30,   help='epochs')
+    p.add_argument("--save_every_nepoch",        type=int,  default=1,   help='epochs')
+    
+    # ViT
+    p.add_argument("--image_size",    type=int,  default=256,  help='input image size')
+    p.add_argument("--patch_size",    type=int,  default=256,  help='patch size in ViT')
+    p.add_argument("--dim",           type=int,  default=1024, help='last dimension of output tensor')
+    p.add_argument("--mlp_dim",       type=int,  default=2048, help='channel size in MLP layer')
+    p.add_argument("--depth",         type=int,  default=6,    help='number of iteration of attention module')
+    p.add_argument("--heads",         type=int,  default=8,    help='number of attention heads')
+    p.add_argument("--lr",            type=float,default=3e-4, help='learning rate: default 3e-4')
+    
+    # DINO
+    # FIXME add following parse args later 
+    #p.add_argument("--project_hidden_size",      type=int,    default=256,  help='channel dimension of dino')
+    #p.add_argument("--project_layers",           type=int,    default=4,    help='projection layers')
+    #p.add_argument("--stemp",                    type=float,  default=0.9,  help='minibatch size')
+    
+    FLAGS = p.parse_args()
+    if verbose:
+        for f in FLAGS.__dict__:
+            print("\t", f, (25 - len(f)) * " ", FLAGS.__dict__[f])
+        print("\n")
+    return FLAGS 
+    
 
 class CustomDataset(Dataset):
     def __init__(self, data_dir):
@@ -26,11 +62,12 @@ class CustomDataset(Dataset):
         return img / 255 
 
 #vit = ViT(image_size = 1024, patch_size = 32, num_classes = 1000, dim = 1024, depth = 6, heads = 8,  mlp_dim = 2048)
-vit = ViT(image_size = 256, patch_size = 32, num_classes = 1000, dim = 1024, depth = 6, heads = 8,  mlp_dim = 2048)
+vit = ViT(image_size = FLAGS.image_size, patch_size = FLAGS.patch_size, num_classes = 1000, dim = FLAGS.dim, 
+          depth = FLAGS.depth, heads = FLAGS.heads, mlp_dim = FLAGS.mlp_dim)
 
 learner = Dino(
     vit,
-    image_size = 256,
+    image_size = FLAGS.image_size,
     hidden_layer = 'to_latent',        # hidden layer name or index, from which to extract the embedding
     projection_hidden_size = 256,      # projector network hidden dimension
     projection_layers = 4,             # number of layers in projection network
@@ -43,16 +80,16 @@ learner = Dino(
     center_moving_average_decay = 0.9, # moving average of teacher centers -anywhere from 0.9 to 0.999 was ok
 )
 
-def demo_basic():
+def demo_basic(FLAGS):
     dist.init_process_group("nccl")
     rank = dist.get_rank()
-    print(f"Start running basic DDP example on rank {rank}.")
+    log.info(f"Start running basic DDP example on rank {rank}.")
 
     # distributed dataloader
-    custom_dataset = CustomDataset(data_dir=f'{HOME}/workspace/hack_team_01/data/processed/patch_256')
+    custom_dataset = CustomDataset(data_dir=FLAGS.datadir)
     data_loader = DataLoader(
         dataset=custom_dataset,
-        batch_size=1024,
+        batch_size=FLAGS.batch_size,
         shuffle=False,
         sampler=DistributedSampler(custom_dataset),
     )
@@ -63,7 +100,7 @@ def demo_basic():
     ddp_model = DDP(model, device_ids=[device_id], find_unused_parameters=True)
 
     os.makedirs(f"{HOME}/ViT_clouds/run/profile",exist_ok=True)
-    CHECKPOINT_PATH = f'{HOME}/ViT_clouds/run/profile/pretrained-net_modis_256_256_patch32_mod.pt'
+    CHECKPOINT_PATH = f'{HOME}/ViT_clouds/run/profile/pretrained-net_modis_{FLAGS.image_size}_{FLAGS.image_size}_patch{FLAGS.patch_size}_mod.pt'
 
     # configure map_location properly
     if os.path.exists(CHECKPOINT_PATH):
@@ -74,8 +111,11 @@ def demo_basic():
       # 0 saves it.
       dist.barrier()
 
-    for epoch in range(3):
-        print(epoch)
+    log.info("Enter Training Loop")
+    for epoch in range(1, FLAGS.epochs+1, 1):
+        if rank == 0:
+            log.info(f"Start Training at Epoch {epoch}")
+        
         data_loader.sampler.set_epoch(epoch)
 
         for batch in data_loader:
@@ -85,20 +125,22 @@ def demo_basic():
             opt.zero_grad()
             loss.backward()
             opt.step()
-            #FIXME is this ddp_model?
-            model.update_moving_average() 
+            model.update_moving_average() # moving average should be model instead of ddp_model 
 
-        if epoch % 1 == 0:
+        # FIXME: the saving criterion should be the best validation loss 
+        if epoch % FLAGS.save_every_nepoch == 0:
             if rank == 0:
                 # All processes should see same parameters as they all start from same
                 # random parameters and gradients are synchronized in backward passes.
                 # Therefore, saving it in one process is sufficient.
-                print(f'save {epoch}', flush=True)
-                CHECKPOINT_PATH = f'{HOME}/ViT_clouds/run/profile/pretrained-net_modis_256_256_patch32_mod_{epoch}.pt'
+                lof.info(f'save checkpoint ... at epoch {epoch}')
                 torch.save(ddp_model.state_dict(), CHECKPOINT_PATH)
 
     dist.destroy_process_group()
 
 if __name__ == "__main__":
-    print(torch.cuda.device_count())
-    demo_basic()
+     # Parse argument
+    FLAGS = parse_args(verbose=True)
+
+    log.info(f" GPU Device Count =  {torch.cuda.device_count()}" )
+    demo_basic(FLAGS)
