@@ -11,7 +11,10 @@ from pathlib import Path
 import logging
 import argparse
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+
+#TODO
 torch.backends.cuda.matmul.allow_tf32 = True
+#torch.backends.cuda.matmul.allow_bf16_reduced_precision_reduction = True # this all bf16 makes slow
 
 HOME=str(Path.home())
 logging.basicConfig(level=logging.INFO,format="%(asctime)s;%(levelname)s;%(message)s")
@@ -124,6 +127,8 @@ def demo_basic():
 
     if rank == 0: log.info("Enter Training Loop")
     bepoch = int(FLAGS.epochs//2) # bench mark at mid point in training
+    
+    opt = torch.optim.Adam(ddp_model.parameters(), lr = 3e-4)
     for epoch in range(1, FLAGS.epochs+1, 1):
         if rank == 0:
             log.info(f"Start Training at Epoch {epoch}")
@@ -135,11 +140,14 @@ def demo_basic():
         train_loss = 0
         for i, batch in enumerate(data_loader):
             batch = batch.to(device_id)
-            if epoch == bepoch: torch.cuda.nvtx.range_push("iteration{}".format(i*(epoch+1)))
-            loss = ddp_model(batch)
-            opt = torch.optim.Adam(ddp_model.parameters(), lr = 3e-4)
-            if epoch == bepoch: torch.cuda.nvtx.range_push("backward")
             opt.zero_grad()
+            
+            # Automated Mixed precision
+            with torch.autocast(device_type='cuda',dtype=torch.float16):
+              if epoch == bepoch: torch.cuda.nvtx.range_push("iteration{}".format(i*(epoch+1)))
+              loss = ddp_model(batch)
+            
+            if epoch == bepoch: torch.cuda.nvtx.range_push("backward")
             loss.backward()
             if epoch == bepoch: torch.cuda.nvtx.range_push("opt.step()")
             opt.step()

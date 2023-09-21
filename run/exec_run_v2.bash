@@ -25,7 +25,7 @@ datadir="/home/mu7sgetq/workspace/data/processed/patch_${image_size}"
 
 # Execute
 PROFILE="nsys profile --trace=cuda,nvtx --force-overwrite true"
-OUTPUT="-o nsys-rep-B${batch_size}-MLPdim${mlp_dim}_S${image_size}_prefetch${prefetch_factor}_nworkers${num_workers}_4gpus"
+OUTPUT="-o nsys-rep-B${batch_size}-MLPdim${mlp_dim}_S${image_size}_prefetch${prefetch_factor}_nworkers${num_workers}_4gpus_amp_wo-tf32"
 time $PROFILE $OUTPUT  torchrun --nnodes=1 --nproc_per_node=4 --rdzv_id=100 --rdzv_backend=c10d --rdzv_endpoint=localhost:6000 $appdir/torchrun_test.py \
         --datadir $datadir \
         --image_size $image_size \
