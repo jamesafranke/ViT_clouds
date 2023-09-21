@@ -126,7 +126,7 @@ def demo_basic():
         if epoch == bepoch: torch.cuda.cudart().cudaProfilerStart()
 
         train_loss = 0
-        for batch in data_loader:
+        for i, batch in enumerate(data_loader):
             batch = batch.to(device_id)
             if epoch == bepoch: torch.cuda.nvtx.range_push("iteration{}".format(i*(epoch+1)))
             loss = ddp_model(batch)
@@ -151,7 +151,7 @@ def demo_basic():
                 torch.save(ddp_model.state_dict(), CHECKPOINT_PATH)
         torch.cuda.empty_cache() # clear cache
 
-    torch.cuda.cudart().cudaProfilerStop()
+        if epoch == bepoch: torch.cuda.cudart().cudaProfilerStop()
     dist.destroy_process_group()
 
 if __name__ == "__main__":
