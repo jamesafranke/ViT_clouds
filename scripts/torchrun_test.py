@@ -22,9 +22,12 @@ def parse_args(verbose=False):
     p = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter, description=__doc__)
     p.add_argument("--datadir",       type=str,  default=f'{HOME}/workspace/hack_team_01/data/processed/patch_256', help='training data directory', required=True)
     p.add_argument("--batch_size",    type=int,  default=200,  help='minibatch size')
-    p.add_argument("--num_workers",   type=int,  default=4,    help='number of workers for pipeline')
     p.add_argument("--epochs",        type=int,  default=30,   help='epochs')
     p.add_argument("--save_every_nepoch",        type=int,  default=1,   help='epochs')
+        
+    # Pipeline
+    p.add_argument("--num_workers",       type=int,  default=4,    help='number of workers for pipeline')
+    p.add_argument("--prefetch_factor",   type=int,  default=None,    help='number of workers for pipeline')
     
     # ViT
     p.add_argument("--image_size",    type=int,  default=256,  help='input image size')
@@ -96,6 +99,9 @@ def demo_basic():
         batch_size=FLAGS.batch_size,
         shuffle=False,
         sampler=DistributedSampler(custom_dataset),
+        num_workers=FLAGS.num_workers,
+        #pin_memory=True,
+        prefetch_factor=FLAGS.prefetch_factor,  
     )
 
     # create model and move it to GPU with id rank
@@ -103,8 +109,9 @@ def demo_basic():
     model = learner.to(device_id)
     ddp_model = DDP(model, device_ids=[device_id], find_unused_parameters=True)
 
-    os.makedirs(f"{HOME}/ViT_clouds/run/profile",exist_ok=True)
-    CHECKPOINT_PATH = f'{HOME}/ViT_clouds/run/profile/pretrained-net_modis_{FLAGS.image_size}_{FLAGS.image_size}_patch{FLAGS.patch_size}_mod.pt'
+    os.makedirs(f"{HOME}/ViT_clouds/run/profile-v2",exist_ok=True)
+    CHECKPOINT_PATH = f'{HOME}/ViT_clouds/run/profile-v2/pretrained-net_modis_{FLAGS.image_size}_{FLAGS.image_size}_patch{FLAGS.patch_size}_mod.pt'
+
 
     # configure map_location properly
     if os.path.exists(CHECKPOINT_PATH):
