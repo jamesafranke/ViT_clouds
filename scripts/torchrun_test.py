@@ -25,11 +25,12 @@ class CustomDataset(Dataset):
         img = read_image(img_path)
         return img / 255 
 
-vit = ViT(image_size = 1024, patch_size = 32, num_classes = 1000, dim = 1024, depth = 6, heads = 8,  mlp_dim = 2048)
+#vit = ViT(image_size = 1024, patch_size = 32, num_classes = 1000, dim = 1024, depth = 6, heads = 8,  mlp_dim = 2048)
+vit = ViT(image_size = 256, patch_size = 32, num_classes = 1000, dim = 1024, depth = 6, heads = 8,  mlp_dim = 2048)
 
 learner = Dino(
     vit,
-    image_size = 1024,
+    image_size = 256,
     hidden_layer = 'to_latent',        # hidden layer name or index, from which to extract the embedding
     projection_hidden_size = 256,      # projector network hidden dimension
     projection_layers = 4,             # number of layers in projection network
@@ -48,10 +49,10 @@ def demo_basic():
     print(f"Start running basic DDP example on rank {rank}.")
 
     # distributed dataloader
-    custom_dataset = CustomDataset(data_dir=f'{HOME}/workspace/hack_team_01/data/processed/patch_1024')
+    custom_dataset = CustomDataset(data_dir=f'{HOME}/workspace/hack_team_01/data/processed/patch_256')
     data_loader = DataLoader(
         dataset=custom_dataset,
-        batch_size=64,
+        batch_size=1024,
         shuffle=False,
         sampler=DistributedSampler(custom_dataset),
     )
@@ -65,12 +66,13 @@ def demo_basic():
     CHECKPOINT_PATH = f'{HOME}/ViT_clouds/run/profile/pretrained-net_modis_256_256_patch32_mod.pt'
 
     # configure map_location properly
-    map_location = {'cuda:%d' % 0: 'cuda:%d' % rank}
-    ddp_model.load_state_dict(
+    if os.path.exists(CHECKPOINT_PATH):
+      map_location = {'cuda:%d' % 0: 'cuda:%d' % rank}
+      ddp_model.load_state_dict(
         torch.load(CHECKPOINT_PATH, map_location=map_location))
-    # Use a barrier() to make sure that process 1 loads the model after process
-    # 0 saves it.
-    dist.barrier()
+      # Use a barrier() to make sure that process 1 loads the model after process
+      # 0 saves it.
+      dist.barrier()
 
     for epoch in range(3):
         print(epoch)
@@ -91,7 +93,8 @@ def demo_basic():
                 # All processes should see same parameters as they all start from same
                 # random parameters and gradients are synchronized in backward passes.
                 # Therefore, saving it in one process is sufficient.
-                print('save', flush=True)
+                print(f'save {epoch}', flush=True)
+                CHECKPOINT_PATH = f'{HOME}/ViT_clouds/run/profile/pretrained-net_modis_256_256_patch32_mod_{epoch}.pt'
                 torch.save(ddp_model.state_dict(), CHECKPOINT_PATH)
 
     dist.destroy_process_group()
