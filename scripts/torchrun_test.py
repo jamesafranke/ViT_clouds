@@ -8,13 +8,14 @@ from torchvision.io import read_image
 from torch.utils.data import Dataset, DataLoader, DistributedSampler
 from vit_pytorch import ViT, Dino
 from pathlib import Path
-import logging as log
+import logging
 import argparse
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 torch.backends.cuda.matmul.allow_tf32 = True
 
 HOME=str(Path.home())
-log.basicConfig(format='%(process)d-%(levelname)s-%(message)s')
+logging.basicConfig(level=logging.INFO,format="%(asctime)s;%(levelname)s;%(message)s")
+log= logging.getLogger("")
 
 def parse_args(verbose=False):
     """ arg parser to automate experiment """
@@ -61,7 +62,9 @@ class CustomDataset(Dataset):
         img = read_image(img_path)
         return img / 255 
 
-#vit = ViT(image_size = 1024, patch_size = 32, num_classes = 1000, dim = 1024, depth = 6, heads = 8,  mlp_dim = 2048)
+# Load parsed config
+FLAGS = parse_args(verbose=False)
+
 vit = ViT(image_size = FLAGS.image_size, patch_size = FLAGS.patch_size, num_classes = 1000, dim = FLAGS.dim, 
           depth = FLAGS.depth, heads = FLAGS.heads, mlp_dim = FLAGS.mlp_dim)
 
@@ -80,9 +83,10 @@ learner = Dino(
     center_moving_average_decay = 0.9, # moving average of teacher centers -anywhere from 0.9 to 0.999 was ok
 )
 
-def demo_basic(FLAGS):
+def demo_basic():
     dist.init_process_group("nccl")
     rank = dist.get_rank()
+    FLAGS = parse_args(rank==0) # Parse argument
     log.info(f"Start running basic DDP example on rank {rank}.")
 
     # distributed dataloader
@@ -111,21 +115,31 @@ def demo_basic(FLAGS):
       # 0 saves it.
       dist.barrier()
 
-    log.info("Enter Training Loop")
+    if rank == 0: log.info("Enter Training Loop")
+    bepoch = int(FLAGS.epochs//2) # bench mark at mid point in training
     for epoch in range(1, FLAGS.epochs+1, 1):
         if rank == 0:
             log.info(f"Start Training at Epoch {epoch}")
         
         data_loader.sampler.set_epoch(epoch)
 
+        if epoch == bepoch: torch.cuda.cudart().cudaProfilerStart()
+
+        train_loss = 0
         for batch in data_loader:
             batch = batch.to(device_id)
+            if epoch == bepoch: torch.cuda.nvtx.range_push("iteration{}".format(i*(epoch+1)))
             loss = ddp_model(batch)
             opt = torch.optim.Adam(ddp_model.parameters(), lr = 3e-4)
+            if epoch == bepoch: torch.cuda.nvtx.range_push("backward")
             opt.zero_grad()
             loss.backward()
+            if epoch == bepoch: torch.cuda.nvtx.range_push("opt.step()")
             opt.step()
             model.update_moving_average() # moving average should be model instead of ddp_model 
+            train_loss += loss.detach_().item()
+        
+        if rank ==0: log.info(f"\n Train loss : {train_loss/len(data_loader)} ")
 
         # FIXME: the saving criterion should be the best validation loss 
         if epoch % FLAGS.save_every_nepoch == 0:
@@ -133,14 +147,13 @@ def demo_basic(FLAGS):
                 # All processes should see same parameters as they all start from same
                 # random parameters and gradients are synchronized in backward passes.
                 # Therefore, saving it in one process is sufficient.
-                lof.info(f'save checkpoint ... at epoch {epoch}')
+                log.info(f'save checkpoint ... at epoch {epoch}')
                 torch.save(ddp_model.state_dict(), CHECKPOINT_PATH)
+        torch.cuda.empty_cache() # clear cache
 
+    torch.cuda.cudart().cudaProfilerStop()
     dist.destroy_process_group()
 
 if __name__ == "__main__":
-     # Parse argument
-    FLAGS = parse_args(verbose=True)
-
     log.info(f" GPU Device Count =  {torch.cuda.device_count()}" )
-    demo_basic(FLAGS)
+    demo_basic()
